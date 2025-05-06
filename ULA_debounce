@@ -8,7 +8,7 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 -- Description of the ULA inputs and outputs
 entity ULA_debounce is
 
-	 generic(delay: integer := 0); -- Clock delay constant
+	 generic(delay: integer := 50000); -- Clock delay constant
     
 	 Port ( clk: in std_logic; -- Clock input
 			  input: in std_logic; -- Button input
