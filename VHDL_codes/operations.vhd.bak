@@ -1,0 +1,201 @@
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
+
+entity operations is
+	
+	Port(	clk : in std_logic;
+			opcode : in std_logic_vector (2 downto 0); --the operation's code is inserted
+         A : in std_logic_vector (3 downto 0); -- first number inserted
+         B : in std_logic_vector (3 downto 0); -- second number inserted
+			result : out std_logic_vector (7 downto 0)); -- output
+
+end operations;
+
+architecture Behavioral of operations is
+
+begin
+	
+process(clk)
+    	
+	variable A_signed, B_signed : std_logic_vector (3 downto 0);
+	variable shift_amount : integer;
+	variable op_result : std_logic_vector (3 downto 0);
+	variable sum, sub : signed(3 downto 0);
+	variable flags : std_logic_vector (3 downto 0);
+	variable c_in, c_out : std_logic;
+	  --Z,C,O,N
+	-- No flags -> "0000"; Zero -> "0001"; Carry Out -> "0010", Overflow -> "0100", Negative -> "1000"
+		-- overflow happens when: two added positive numbers result in a negative number; two added negative numbers result in a positive one
+		-- carry out happens when there's a 5th bit in a 4th bit number operation
+begin
+	
+	if clk'event and clk = '1' then
+		
+		case opcode is
+		
+			when "000" => --AND
+				op_result := A and B;
+				 flags := "0000";
+				 
+			when "001" => --OR
+				op_result := A or B;
+				 flags := "0000";
+				 
+			when "010" => -- XOR
+				op_result := A xor B;
+				 flags := "0000";
+				 
+			when "011" => --2's Complement Module
+				if B(3) = '1' then
+				op_result := std_logic_vector(unsigned (not B)+1);
+			else
+				op_result := B;
+			end if;
+
+				 flags := "0000";
+			
+			when "100" => --2's Complement Comparison
+			
+				if A(3) = '1' then
+					A_signed := std_logic_vector(unsigned (not A)+1);
+				else
+					A_signed := A;
+				end if;
+				 
+				if B(3) = '1' then
+					B_signed := std_logic_vector(unsigned (not B)+1);
+				else
+					B_signed := B;
+				end if;
+				 
+				 -- Comparison begins here
+				 
+				if A(3) = B(3) then
+					if A_signed > B_signed then
+						op_result := "0001";
+						if A(3) = '1' then
+							op_result := "0010";
+						end if;
+						 
+					elsif A_signed < B_signed then
+						op_result := "0010";
+						if A(3) = '1' then
+							op_result := "0001";
+						end if;
+						 
+					else
+						 op_result := "0100";
+					end if;
+							
+				 else
+				 
+					if A(3) > B(3) then
+					  op_result := "0010";
+					else
+					  op_result := "0001";
+					end if;
+					
+				 end if;
+				 
+			flags := "0000"; -- No flags
+
+			when "101" => -- 2's Complement Adder
+			
+				c_out := '0';
+
+				 for i in 0 to 3 loop
+					c_in := c_out;
+					  sum(i) := (A(i) xor B(i)) xor c_in;
+					  c_out := ((A(i) xor B(i)) and c_in) or (A(i) and B(i)); 
+				 end loop;
+
+				op_result := std_logic_vector(sum); -- sum result in 4 bits
+
+				if (A(3) = B(3)) and (op_result(3) /= A(3)) then -- Overflow
+					if op_result(3) = '1' then
+							flags := "1100"; -- Overflow + Negative
+					else
+							flags := "0100"; -- Overflow
+					end if;
+
+				elsif op_result(3) = '1' then
+					flags := "1000"; -- Negative (sem overflow)
+				else
+					flags := "0000"; -- No flags
+				end if;
+					 
+					 if c_out = '1' then
+						flags := "0010" or flags;
+					 end if;
+				 
+			when "110" => -- 2's complement Subtractor
+
+				B_signed := std_logic_vector(unsigned (not B)+1);
+			
+				 c_in := '0';
+			
+				 for i in 0 to 3 loop
+					  sub(i) := (A(i) xor B_signed(i)) xor c_in;
+					  c_out := ((A(i) xor B_signed(i)) and c_in) or (A(i) and B_signed(i)); 
+					  c_in := c_out;
+				end loop;
+				 
+				 op_result := std_logic_vector(sub); -- Resultado da subtracao em 4 bits
+				 
+
+				if (A(3) /= B(3)) and (op_result(3) /= A(3)) then -- Overflow
+					if op_result(3) = '1' then
+							flags := "1100"; -- Overflow + Negative
+					else
+							flags := "0100"; -- Overflow
+					end if;
+
+				elsif op_result(3) = '1' then
+					flags := "1000"; -- Negative (no overflow)
+				else
+					flags := "0000"; -- No flags
+				end if;
+				 
+				if c_out = '1' then
+					flags := "0010" or flags;
+				end if;
+				
+--            when "111" => -- Shift	
+--    		shift_amount := to_integer(unsigned(B(1 downto 0)));
+--
+--    		if shift_amount >= 4 then
+--        		if B(3) = '0' then
+--            		op_result := (others => '0');
+--        		else
+--            		op_result := (others => '1');
+--        		end if;
+--
+--    		else
+--        		if B(2) = '0' then -- Shift to the Left
+--            	-- Left shift w/ manual filling
+--            		op_result := std_logic_vector(shift_left(unsigned(A), shift_amount));
+--            		for i in 0 to shift_amount - 1 loop
+--                		op_result(i) := B(3); -- will fill with 0's or 1's
+--            		end loop;
+--
+--        		else -- B(2) = '1' => Shift to the Right
+--            	-- Right shift w/ manual filling
+--            		op_result := std_logic_vector(shift_right(unsigned(A), shift_amount));
+--            		for i in 3 downto 4 - shift_amount loop
+--                		op_result(i) := B(3); -- will fill with 0's or 1's
+--            		end loop;
+--        		end if;
+--    		end if;
+--    		flags := "0000"; -- shift doesn't alter flags
+			when others =>
+				op_result := "1111"; --error code -> 00000000
+		end case;
+	 end if;
+--         if op_result = "0000" then
+--        			flags := "0001" or flags; -- Zero Flag
+--         end if;
+
+		result <= flags & op_result (3 downto 0); --8 bit output: flags (4bits) + op_result (4bits)
+  end process;
+end Behavioral;
