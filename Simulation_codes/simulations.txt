@@ -1,0 +1,1 @@
+Essa pasta inclui os códigos utilizados para a simulação do projeto completo no simulador Quartus e Modelsim-Altera
