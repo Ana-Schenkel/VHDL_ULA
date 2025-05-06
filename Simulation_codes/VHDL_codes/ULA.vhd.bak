@@ -1,0 +1,157 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+  
+entity ULA is
+
+    Port (  clk : in std_logic;
+				button : in std_logic;
+				sw0     : in std_logic;
+				sw1     : in std_logic;
+				sw2     : in std_logic;
+				sw3     : in std_logic;
+				led0   : out std_logic;
+				led1   : out std_logic;
+				led2   : out std_logic;
+				led3   : out std_logic;
+				led4   : out std_logic;
+				led5   : out std_logic;
+				led6   : out std_logic;
+				led7   : out std_logic);
+
+end ULA;
+
+architecture Behavioral of ULA is
+
+	component ULA_debounce_lab 
+   Port(	
+			clk: in std_logic; -- clock input
+			input: in std_logic; -- button input
+			debounce: out std_logic);
+	end component;
+	
+	component operations is
+	Port(
+    		clk : in std_logic;
+			opcode : in std_logic_vector (2 downto 0); --the operation's code is inserted
+         A : in std_logic_vector (3 downto 0); -- first number inserted
+         B : in std_logic_vector (3 downto 0); -- second number inserted
+			result : out std_logic_vector (7 downto 0)); -- output
+	end component;
+
+
+	signal a: std_logic_vector(3 downto 0) := "0000"; -- primeiro operando = 0
+	signal b: std_logic_vector(3 downto 0) := "0000"; -- segundo operando = 0
+	signal opcode: std_logic_vector(2 downto 0) := "000"; -- operação = and
+	
+	signal result: std_logic_vector(7 downto 0) := "01010101"; -- vai vir de outro arquivo
+	signal debounce: std_logic; -- vem de ULA_debounce_lab
+
+	signal switches : std_logic_vector(3 downto 0);
+   signal leds: std_logic_vector(7 downto 0) := "00000000"; -- resultado = 0
+	signal state: std_logic_vector(1 downto 0) := "00"; -- estado = 0
+	
+begin
+
+-- DUT of debounce
+	deb_dut: ULA_debounce_lab port map (
+        clk      => clk,
+        input    => button,
+        debounce => debounce
+    );
+	 
+	 op_dut: operations port map (
+        clk    => clk,
+		  opcode => opcode,
+        a      => A,
+        b      => B,
+		  result => result
+    );
+	 
+	switches <= sw3 & sw2 & sw1 & sw0;
+
+   led0 <= leds(0);
+	led1 <= leds(1);
+	led2 <= leds(2);
+	led3 <= leds(3);
+	led4 <= leds(4);
+	led5 <= leds(5);
+	led6 <= leds(6);
+	led7 <= leds(7);
+ 
+process(clk)
+
+	variable operation_var : std_logic_vector(2 downto 0);
+	
+begin
+	if (clk'event and clk = '1') then
+    	if (debounce = '1') then
+			
+			case state is
+			
+				when "00" =>
+				
+					for i in 0 to 2 loop
+						operation_var(i) := switches(i);
+						leds(i) <= switches(i);
+					end loop;
+					
+					for i in 0 to 4 loop
+						leds(3+i) <= '0';
+					end loop;
+					
+					if (operation_var = "011") then -- caso a operação seja "módulo", pula um estado
+						state <= "11";
+					else
+						state <= "01";
+					end if;
+					
+					opcode <= operation_var;
+
+				
+				when "01" =>
+				
+					a <= "0000";
+				
+					for i in 0 to 3 loop
+						a(i) <= switches(i);
+						leds(i) <= switches(i);
+					end loop;
+					
+					for i in 0 to 3 loop
+						leds(4+i) <= '0';
+					end loop;
+					
+					state <= "11";
+
+					
+				when "11" =>
+				
+					b <= "0000";
+				
+					for i in 0 to 3 loop
+						b(i) <= switches(i);
+						leds(i) <= switches(i);
+					end loop;
+					
+					for i in 0 to 3 loop
+						leds(4+i) <= '0';
+					end loop;
+					
+					state <= "10";
+				
+				when "10" =>
+--					result <= "01010101";
+					leds <= result;
+					state <= "00";
+				
+				when others =>
+					leds <= "00000000";
+					state <= "00";
+					
+			end case;
+		end if;
+	end if;
+end process;
+
+end Behavioral; 
